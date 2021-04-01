@@ -1,4 +1,4 @@
-function [icmat] = focusCoords (idy,idz,coords,icvec,cfl)
+function [icmat dd]  = focusCoords (idy,idz,coords,icvec,cfl)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % GIANMARCO PINTON
 % WRITTEN: NOV 13, 2013

@@ -1,4 +1,4 @@
-2%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % GIANMARCO PINTON
 % FIRST WRITTEN: 2018-06-21
 % LAST MODIFIED: 2022-03-03
@@ -383,9 +383,9 @@ for n=1:tx.nTx
   eval(['!cp fullwave2_try6_nln_relaxing ' outdir]);
   
   cwd=pwd; addpath(cwd);
+  cd(outdir)
   prep_fullwave2_try6_nln_relaxing9(c0,omega0,wX,wY,duration,p0,ppw,cfl,cmap,rhomap,Amap,betamap,incoords,outcoords,icmat)
   eval('!./fullwave2_try6_nln_relaxing & ')
-  cd(outdir)
   cd(cwd);
 
 end
@@ -394,9 +394,10 @@ end
 %%% GENERATE IMAGE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 deps = 2e-3:lambda/8:nY*dY/1.1;
 lats = 0;
-xducercoords = outcoords;
-bm=zeros(length(lats),length(deps),nlines);
+xducercoords = outcoords(idxducer,:);
+bm=zeros(length(lats),length(deps),tx.nTx);
 idps=cell(length(lats),length(deps));
+fnumber=1;
 
 n=round(tx.nTx/2);
  outdir=['/kulm/scratch/bmm890/txrx_' num2str(n) '/']
@@ -412,12 +413,12 @@ for n=1:tx.nTx
 
   ncoordsout=size(outcoords,1);
   nRun=sizeOfFile([outdir 'genout.dat'])/4/ncoordsout;
-  while(nRun<nT-10)
+  while(nRun<nT-1)
     pause(0.1)
     nRun=sizeOfFile([outdir 'genout.dat'])/4/ncoordsout;
   end
- pxducer = readGenoutSlice(['genout.dat'],0:nRun-1,size(outcoords,1),idxducer);
- imagesc(powcompress(pxducer,1/3))
+ pxducer = readGenoutSlice([outdir 'genout.dat'],0:nRun-1,size(outcoords,1),idxducer);
+ imagesc(powcompress(pxducer,1/3)), drawnow
  
   if(n==1)
     idps=cell(length(lats),length(deps));
@@ -443,20 +444,88 @@ for n=1:tx.nTx
   end
 end
 
+
 %% PLOT THE BMODE IMAGE %%
 figure(1)
-n=1:tx.nTx; bws=((n-(tx.nTx+1)/2)*tx.bmw/4)*dY;
+n=1:tx.nTx; bws=((n-(tx.nTx+1)/2)*tx.bmw);
 imagesc(bws*1e3,deps*1e3,dbzero(abs(hilbert(squeeze(bm)))),[-40 0])
-colormap gray
+colormap gray, colorbar
 xlabel('mm'), ylabel('mm')
 axis equal, axis tight
 
-figure(2)
-n=6;
-cs = cscat_lesion(round(nXextend/2-(n-(tx.nTx+1)/2)*tx.bmw/4-nY/2):round(nXextend/2-(n-(tx.nTx+1)/2)*tx.bmw/4-nY/2)+nY-1,:);
+% think about speed of sound, idt0, colorbar, sampling, ...
 
-imagesc(((1:nY)-nY/2)*dY*1e3,(1:nZ)*dY*1e3,cs')
-axis equal, axis tight
-axis([bws(1) bws(end) deps(1) deps(end)]*1e3)
+addpath /celerina/gfp/mfs/dumbmat/
+figure(1)
+n=1:tx.nTx; bws=((n-(tx.nTx+1)/2)*tx.bmw);
+img=dbzero(abs(hilbert(squeeze(bm))));
+img=interp2easy(img,4,1);
+imagesc(bws*1e3,deps*1e3,img,[-40 0])
+colormap gray, colorbar
 xlabel('mm'), ylabel('mm')
+axis equal, axis tight
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% compare to plane wave %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+n=round(tx.nTx/2);
+
+outdir=['/kulm/scratch/bmm890/txrx_' num2str(n) '/']
+eval(['!mkdir -p ' outdir]);
+
+cmap=cmapextend(1+(n-1)*round(tx.bmw/dX):(n-1)*round(tx.bmw/dX)+nX,:);
+rhomap=rhomapextend(1+(n-1)*round(tx.bmw/dX):(n-1)*round(tx.bmw/dX)+nX,:);
+Amap=Amapextend(1+(n-1)*round(tx.bmw/dX):(n-1)*round(tx.bmw/dX)+nX,:);
+betamap=betamapextend(1+(n-1)*round(tx.bmw/dX):(n-1)*round(tx.bmw/dX)+nX,:);
+
+imagesc(rhomap'), drawnow
+
+eval(['!cp fullwave2_try6_nln_relaxing ' outdir]);
+
+cwd=pwd; addpath(cwd);
+cd(outdir)
+prep_fullwave2_try6_nln_relaxing9(c0,omega0,wX,wY,duration,p0,ppw,cfl,cmap,rhomap,Amap,betamap,incoords,outcoords,icmat)
+eval('!./fullwave2_try6_nln_relaxing & ')
+cd(cwd);
+
+outdir=['/kulm/scratch/bmm890/txrx_' num2str(n) '/']
+ncoordsout=size(outcoords,1);
+nRun=sizeOfFile([outdir 'genout.dat'])/4/ncoordsout;
+pxducer = readGenoutSlice(['genout.dat'],0:nRun-1,size(outcoords,1),idxducer);
+imagesc(powcompress(pxducer,1/3))
+px=pxducer(:,round(size(pxducer,2)/2));
+[val idt0]=max(abs(hilbert(px)))
+
+imagesc(powcompress(pxducer,1/3))
+lats = bws;
+
+bm=zeros(length(lats),length(deps));
+idps=cell(length(lats),length(deps));
+
+fnumber=1;
+
+idps=cell(length(lats),length(deps));
+for ii=1:length(lats)
+  lat=lats(ii);
+  for jj=1:length(deps)
+    dep=deps(jj);
+    fcen=round([lat/dY+mean(xducercoords(:,1)) dep/dY ]);
+    idx=find(abs(xducercoords(:,1)-fcen(1))<=fcen(2)/fnumber);
+    dd=focusProfile(fcen,xducercoords(idx,:),dT/dY*c0);
+    idt=idt0+round(2*dep/double(c0)/(dT));
+    idp=double((size(pxducer,1)*(idx-1))+double(idt)+dd);
+    idps{ii,jj}=idp;
+  end
+end
+
+  for ii=1:length(lats)
+    for jj=1:length(deps)
+      bm(ii,jj)=sum(pxducer(idps{ii,jj}));
+    end
+  end
+
+figure(1), clf
+imagesc(lats*1e3,deps*1e3,dbzero(abs(hilbert(squeeze(bm')))),[-40 0])
+colormap gray, cbar=colorbar; title(cbar,'dB')
+xlabel('mm'), ylabel('mm')
+axis equal, axis tight
